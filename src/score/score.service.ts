@@ -9,16 +9,25 @@ export class ScoreService {
 
   submitScore(teacherId: string, quizId: string, score: number) {
     // Check if the quiz exists
-    const quiz = this.quizService.getQuizById(quizId, teacherId); // Make sure to pass the required arguments
+    const quiz = this.quizService.getQuizById(quizId, teacherId); // Ensure the quiz belongs to the teacher
     if (!quiz) {
       throw new NotFoundException('Quiz not found'); // If quiz doesn't exist, throw an error
     }
-
-    // Proceed to submit score if quiz exists
+  
+    // Check if there is already a score submitted for the same quizId and teacherId
+    const existingScore = this.scores.find(s => s.quizId === quizId && s.teacherId === teacherId);
+  
+    if (existingScore) {
+      // If score exists, update it
+      existingScore.score = score;
+      return { message: 'Score updated successfully' };
+    }
+  
+    // If no existing score, add a new entry to the scores array
     this.scores.push({ teacherId, quizId, score });
     return { message: 'Score submitted successfully' };
   }
-
+  
   // Retrieve leaderboard for a specific quiz
   getLeaderboard(quizId: string) {
     const leaderboard = this.scores.filter(score => score.quizId === quizId);
