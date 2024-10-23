@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { User } from '../entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
@@ -8,47 +9,52 @@ export class AuthService {
 
   constructor(private readonly jwtService: JwtService) {}
 
-  signup(user: User) {
-    // Regular expression for validating CNIC format "12345-1234567-1"
+  async signup(user: User) {
     const cnicRegex = /^\d{5}-\d{7}-\d{1}$/;
-  
-    // Validate CNIC format
+
     if (!cnicRegex.test(user.cnic)) {
       throw new BadRequestException('Invalid CNIC format. It should be in the format 12345-1234567-1.');
     }
-  
-    // Validate password length (must be at least 8 characters)
+
     if (user.password.length < 8) {
       throw new BadRequestException('Password must be at least 8 characters long.');
     }
-  
-    // Validate role (must be "teacher" or "student" only)
+
     const validRoles = ['teacher', 'student'];
-    if (!validRoles.includes(user.role)) {
+    if (!validRoles.includes(user.role.toLowerCase())) {
       throw new BadRequestException('Invalid role. Role must be either "teacher" or "student".');
     }
-  //
-    // Check if user with the same CNIC exists
+
     const userExists = this.users.find(u => u.cnic === user.cnic);
     if (userExists) {
       throw new BadRequestException('User with this CNIC already exists.');
     }
-  
-    // In real cases, we will use a hash for the password (e.g., bcrypt)
-    user.id = Math.random().toString(36).substr(2, 9); // Generate a random user ID
+
+    // Hash the password before saving it
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(user.password, salt);
+
+    user.id = Math.random().toString(36).substr(2, 9);
     this.users.push(user);
+
     return { message: 'User registered successfully' };
   }
-  
-  login(user: User) {
-    // Find user by CNIC and password
-    //hash password----------------------------------------------------------------
-    const foundUser = this.users.find(u => u.cnic === user.cnic && u.password === user.password);
+
+  async login(user: User) {
+    const foundUser = this.users.find(u => u.cnic === user.cnic);
     if (!foundUser) {
-      return { message: 'Invalid credentials' };
+      throw new BadRequestException('Invalid credentials');
     }
-    const payload = { username: foundUser.username, sub: foundUser.id, role: foundUser.role }; // Use foundUser's role
-    const token = this.jwtService.sign(payload);
+
+    // Compare the provided password with the hashed password
+    const isPasswordValid = await bcrypt.compare(user.password, foundUser.password);
+    if (!isPasswordValid) {
+      throw new BadRequestException('Invalid credentials');
+    }
+
+    const payload = { username: foundUser.username, sub: foundUser.id, role: foundUser.role };
+    const token = this.jwtService.sign(payload, { expiresIn: '1h' });
+
     return {
       access_token: token,
     };
