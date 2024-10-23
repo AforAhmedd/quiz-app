@@ -5,12 +5,27 @@ import { Quiz } from '../entities/quiz.entity';
 export class QuizService {
   private quizzes: Quiz[] = [];
 //Date and time should be in valid format
-  createQuiz(quiz: Quiz, teacherId: string) {
-    quiz.id = Math.random().toString(36).substr(2, 9); // Generate a random quiz ID
-    quiz.teacherId = teacherId; // Associate quiz with the teacher who created it
-    this.quizzes.push(quiz);
-    return { message: 'Quiz created successfully', QuizId: quiz.id, quiz };
+createQuiz(quiz: Quiz, teacherId: string) {
+  // Validate the deadline
+  const quizDeadline = new Date(quiz.deadline).getTime();
+  const currentTime = new Date().getTime();
+
+  if (isNaN(quizDeadline) || quizDeadline <= currentTime) {
+    throw new BadRequestException('Invalid deadline. Deadline must be a future date.');
   }
+
+  // Validate the time limit
+  if (!quiz.timeLimit || typeof quiz.timeLimit !== 'number' || quiz.timeLimit <= 0) {
+    throw new BadRequestException('Invalid time limit. Time limit must be a positive number.');
+  }
+
+  // Generate a random quiz ID and associate with the teacher
+  quiz.id = Math.random().toString(36).substr(2, 9);
+  quiz.teacherId = teacherId; 
+
+  this.quizzes.push(quiz);
+  return { message: 'Quiz created successfully', QuizId: quiz.id, quiz };
+}
 
   // Check if a quiz can be taken (before the deadline)
   canTakeQuiz(quizId: string): boolean {

@@ -2,13 +2,13 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { User } from '../entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-
+import { UserRole } from './user-role.enum';
 @Injectable()
 export class AuthService {
   private users: User[] = [];
 
   constructor(private readonly jwtService: JwtService) {}
-
+ 
   async signup(user: User) {
     const cnicRegex = /^\d{5}-\d{7}-\d{1}$/;
 
@@ -20,10 +20,11 @@ export class AuthService {
       throw new BadRequestException('Password must be at least 8 characters long.');
     }
 
-    const validRoles = ['teacher', 'student'];
-    if (!validRoles.includes(user.role.toLowerCase())) {
+    const validRoles = Object.values(UserRole);
+    if (!validRoles.includes(user.role as UserRole)) {
       throw new BadRequestException('Invalid role. Role must be either "teacher" or "student".');
     }
+    
 
     const userExists = this.users.find(u => u.cnic === user.cnic);
     if (userExists) {

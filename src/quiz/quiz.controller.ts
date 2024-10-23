@@ -2,6 +2,8 @@ import { Controller, Post, Get, Param, Query, Body, UseGuards, Request, BadReque
 import { QuizService } from './quiz.service';
 import { Quiz } from '../entities/quiz.entity';
 import { AuthGuard } from '../auth/auth.guard';
+import { UserRole } from '../auth/user-role.enum'; // Adjust the path as necessary
+
 
 @Controller('quizzes')
 export class QuizController {
@@ -10,7 +12,7 @@ export class QuizController {
   @Post()
   @UseGuards(AuthGuard)
   createQuiz(@Body() quiz: Quiz, @Request() req) {
-    if (req.user.role !== 'teacher') {
+    if (req.user.role !== UserRole.Teacher) {
       return { message: 'Only teachers can create quizzes' };
     }
     // Ensure the teacher provides the deadline and time limit
@@ -24,7 +26,7 @@ export class QuizController {
   @Get()
   @UseGuards(AuthGuard)
   getQuizzes(@Request() req, @Query('id') quizId?: string, @Query('title') title?: string) {
-    if (req.user.role !== 'teacher') {
+    if (req.user.role !== UserRole.Teacher) {
       return { message: 'Only teachers can retrieve quizzes' };
     }
 
@@ -46,7 +48,7 @@ export class QuizController {
   @UseGuards(AuthGuard)
   takeQuiz(@Param('id') quizId: string, @Request() req) {
     // Restrict teachers from taking the quiz
-    if (req.user.role !== 'student') {
+    if (req.user.role !== UserRole.Teacher) {
       throw new ForbiddenException('Only students can take quizzes');
     }
 
