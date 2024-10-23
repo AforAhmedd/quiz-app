@@ -4,7 +4,7 @@ import { Quiz } from '../entities/quiz.entity';
 @Injectable()
 export class QuizService {
   private quizzes: Quiz[] = [];
-
+//Date and time should be in valid format
   createQuiz(quiz: Quiz, teacherId: string) {
     quiz.id = Math.random().toString(36).substr(2, 9); // Generate a random quiz ID
     quiz.teacherId = teacherId; // Associate quiz with the teacher who created it

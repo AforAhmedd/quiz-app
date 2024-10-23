@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException,BadRequestException  } from '@nestjs/common';
 import { QuizService } from '../quiz/quiz.service';
 
 @Injectable()
@@ -8,10 +8,20 @@ export class ScoreService {
   constructor(private readonly quizService: QuizService) {}
 
   submitScore(teacherId: string, quizId: string, score: number) {
-    // Check if the quiz exists
-    const quiz = this.quizService.getQuizById(quizId, teacherId); // Ensure the quiz belongs to the teacher
+    // Validate if the score is a number
+    if (typeof score !== 'number' || isNaN(score)) {
+      throw new BadRequestException('Score must be a valid number.');
+    }
+  
+    // Validate that the score is greater than or equal to 0
+    if (score < 0) {
+      throw new BadRequestException('Score must be greater than or equal to 0.');
+    }
+  
+    // Check if the quiz exists and belongs to the teacher
+    const quiz = this.quizService.getQuizById(quizId, teacherId);
     if (!quiz) {
-      throw new NotFoundException('Quiz not found'); // If quiz doesn't exist, throw an error
+      throw new NotFoundException('Quiz not found');
     }
   
     // Check if there is already a score submitted for the same quizId and teacherId
