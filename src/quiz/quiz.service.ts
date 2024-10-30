@@ -1,35 +1,35 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
-import { Quiz } from '../entities/quiz.entity';
+import { Injectable, BadRequestException} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Quiz, QuizDocument } from './quiz.schema';
 
 @Injectable()
 export class QuizService {
-  private quizzes: Quiz[] = [];
-//Date and time should be in valid format
-createQuiz(quiz: Quiz, teacherId: string) {
-  // Validate the deadline
-  const quizDeadline = new Date(quiz.deadline).getTime();
-  const currentTime = new Date().getTime();
+  constructor(@InjectModel(Quiz.name) private quizModel: Model<QuizDocument>) {}
 
-  if (isNaN(quizDeadline) || quizDeadline <= currentTime) {
-    throw new BadRequestException('Invalid deadline. Deadline must be a future date.');
+  async createQuiz(quiz: Quiz, teacherId: string): Promise<any> {
+    // Validate the deadline
+    const quizDeadline = new Date(quiz.deadline).getTime();
+    const currentTime = new Date().getTime();
+
+    if (isNaN(quizDeadline) || quizDeadline <= currentTime) {
+      throw new BadRequestException('Invalid deadline. Deadline must be a future date.');
+    }
+
+    // Validate the time limit
+    if (!quiz.timeLimit || typeof quiz.timeLimit !== 'number' || quiz.timeLimit <= 0) {
+      throw new BadRequestException('Invalid time limit. Time limit must be a positive number.');
+    }
+
+    quiz.teacherId = teacherId;
+    const newQuiz = new this.quizModel(quiz);
+    await newQuiz.save();
+
+    return { message: 'Quiz created successfully', QuizId: newQuiz.id, quiz: newQuiz };
   }
 
-  // Validate the time limit
-  if (!quiz.timeLimit || typeof quiz.timeLimit !== 'number' || quiz.timeLimit <= 0) {
-    throw new BadRequestException('Invalid time limit. Time limit must be a positive number.');
-  }
-
-  // Generate a random quiz ID and associate with the teacher
-  quiz.id = Math.random().toString(36).substr(2, 9);
-  quiz.teacherId = teacherId; 
-
-  this.quizzes.push(quiz);
-  return { message: 'Quiz created successfully', QuizId: quiz.id, quiz };
-}
-
-  // Check if a quiz can be taken (before the deadline)
-  canTakeQuiz(quizId: string): boolean {
-    const quiz = this.quizzes.find(quiz => quiz.id === quizId);
+  async canTakeQuiz(quizId: string): Promise<boolean> {
+    const quiz = await this.quizModel.findById(quizId).exec();
     if (!quiz) {
       throw new BadRequestException('Quiz not found');
     }
@@ -37,23 +37,24 @@ createQuiz(quiz: Quiz, teacherId: string) {
     const currentTime = new Date().getTime();
     const quizDeadline = new Date(quiz.deadline).getTime();
 
-    return currentTime <= quizDeadline; // Ensure current time is before the deadline
+    return currentTime <= quizDeadline;
   }
 
-  getQuizzesByTeacher(teacherId: string) {
-    return this.quizzes.filter(quiz => quiz.teacherId === teacherId);
+  async getQuizzesByTeacher(teacherId: string): Promise<Quiz[]> {
+    return await this.quizModel.find({ teacherId }).exec();
   }
 
-  getQuizById(quizId: string, teacherId: string) {
-    return this.quizzes.find(quiz => quiz.id === quizId && quiz.teacherId === teacherId);
+  async getQuizById(quizId: string, teacherId: string): Promise<Quiz | null> {
+    return await this.quizModel.findOne({ _id: quizId, teacherId }).exec();
   }
 
-  getQuizzesByTitle(title: string, teacherId: string) {
-    return this.quizzes.filter(quiz => quiz.title.toLowerCase().includes(title.toLowerCase()) && quiz.teacherId === teacherId);
+  async getQuizzesByTitle(title: string, teacherId: string): Promise<Quiz[]> {
+    return await this.quizModel
+      .find({ title: new RegExp(title, 'i'), teacherId })
+      .exec();
   }
 
-
-  getQuizForScoreSubmission(quizId: string): Quiz {
-    return this.quizzes.find(quiz => quiz.id === quizId);
+  async getQuizForScoreSubmission(quizId: string): Promise<Quiz | null> {
+    return await this.quizModel.findById(quizId).exec();
   }
 }

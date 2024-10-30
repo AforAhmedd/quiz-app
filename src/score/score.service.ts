@@ -1,49 +1,41 @@
-import { Injectable, NotFoundException,BadRequestException  } from '@nestjs/common';
+// src/score/score.service.ts
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Score, ScoreDocument } from './score.schema'; // Ensure this is correct
 import { QuizService } from '../quiz/quiz.service';
 
 @Injectable()
 export class ScoreService {
-  private scores = [];
+  constructor(
+    @InjectModel(Score.name) private readonly scoreModel: Model<ScoreDocument>, // Inject ScoreModel
+    private readonly quizService: QuizService,
+  ) {}
 
-  constructor(private readonly quizService: QuizService) {}
+  async submitScore(userId: string, quizId: string, score: number) {
+    if (typeof score !== 'number' || isNaN(score) || score < 0) {
+      throw new BadRequestException('Score must be a valid number and greater than or equal to 0.');
+    }
 
-  submitScore(teacherId: string, quizId: string, score: number) {
-    // Validate if the score is a number
-    if (typeof score !== 'number' || isNaN(score)) {
-      throw new BadRequestException('Score must be a valid number.');
-    }
-  
-    // Validate that the score is greater than or equal to 0
-    if (score < 0) {
-      throw new BadRequestException('Score must be greater than or equal to 0.');
-    }
-  
-    // Check if the quiz exists and belongs to the teacher
-    const quiz = this.quizService.getQuizById(quizId, teacherId);
+    const quiz = await this.quizService.getQuizById(quizId, userId);
     if (!quiz) {
       throw new NotFoundException('Quiz not found');
     }
-  
-    // Check if there is already a score submitted for the same quizId and teacherId
-    const existingScore = this.scores.find(s => s.quizId === quizId && s.teacherId === teacherId);
-  
+
+    const existingScore = await this.scoreModel.findOne({ userId, quizId });
     if (existingScore) {
-      // If score exists, update it
       existingScore.score = score;
+      await existingScore.save();
       return { message: 'Score updated successfully' };
     }
-  
-    // If no existing score, add a new entry to the scores array
-    this.scores.push({ teacherId, quizId, score });
+
+    const newScore = new this.scoreModel({ userId, quizId, score });
+    await newScore.save();
     return { message: 'Score submitted successfully' };
   }
-  
-  // Retrieve leaderboard for a specific quiz
-  getLeaderboard(quizId: string) {
-    const leaderboard = this.scores.filter(score => score.quizId === quizId);
-    if (leaderboard.length === 0) {
-      return { message: 'No scores found for this quiz' };
-    }
-    return leaderboard.sort((a, b) => b.score - a.score); // Sort by highest score
+
+  async getLeaderboard(quizId: string) {
+    const leaderboard = await this.scoreModel.find({ quizId }).sort({ score: -1 });
+    return leaderboard.length > 0 ? leaderboard : { message: 'No scores found for this quiz' };
   }
 }

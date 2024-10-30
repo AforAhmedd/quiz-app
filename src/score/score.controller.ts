@@ -1,3 +1,5 @@
+// src/score/score.controller.ts
+
 import { Controller, Post, Get, Body, UseGuards, Request, Query } from '@nestjs/common';
 import { ScoreService } from './score.service';
 import { AuthGuard } from '../auth/auth.guard';
@@ -9,7 +11,7 @@ export class ScoreController {
   // Submit a score for a quiz (Only teachers can submit scores)
   @Post()
   @UseGuards(AuthGuard)
-  submitScore(@Body() body, @Request() req) {
+  async submitScore(@Body() body, @Request() req) {
     const { quizId, score } = body;
 
     // Check if the user is a teacher
@@ -27,7 +29,7 @@ export class ScoreController {
   // Get the leaderboard for a specific quiz
   @Get()
   @UseGuards(AuthGuard)
-  getLeaderboard(@Query('quizId') quizId: string) {
+  async getLeaderboard(@Query('quizId') quizId: string) {
     if (!quizId) {
       return { message: 'Quiz ID is required' };
     }

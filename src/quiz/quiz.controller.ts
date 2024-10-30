@@ -1,9 +1,8 @@
 import { Controller, Post, Get, Param, Query, Body, UseGuards, Request, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { QuizService } from './quiz.service';
-import { Quiz } from '../entities/quiz.entity';
+import { Quiz, QuizDocument } from './quiz.schema'; // Import from the MongoDB schema file
 import { AuthGuard } from '../auth/auth.guard';
-import { UserRole } from '../auth/user-role.enum'; // Adjust the path as necessary
-
+import { UserRole } from '../auth/user-role.enum';
 
 @Controller('quizzes')
 export class QuizController {
@@ -11,48 +10,44 @@ export class QuizController {
 
   @Post()
   @UseGuards(AuthGuard)
-  createQuiz(@Body() quiz: Quiz, @Request() req) {
+  async createQuiz(@Body() quiz: Quiz, @Request() req) {
     if (req.user.role !== UserRole.Teacher) {
       return { message: 'Only teachers can create quizzes' };
     }
-    // Ensure the teacher provides the deadline and time limit
     if (!quiz.deadline || !quiz.timeLimit) {
       throw new BadRequestException('Deadline and time limit are required');
     }
-    return this.quizService.createQuiz(quiz, req.user.sub); // Pass teacher's ID
+    return await this.quizService.createQuiz(quiz, req.user.sub); // Pass teacher's ID
   }
 
-  // Get all quizzes created by the teacher
   @Get()
   @UseGuards(AuthGuard)
-  getQuizzes(@Request() req, @Query('id') quizId?: string, @Query('title') title?: string) {
+  async getQuizzes(@Request() req, @Query('id') quizId?: string, @Query('title') title?: string) {
     if (req.user.role !== UserRole.Teacher) {
       return { message: 'Only teachers can retrieve quizzes' };
     }
 
     if (quizId) {
-      const quiz = this.quizService.getQuizById(quizId, req.user.sub); // Fetch quiz by ID
+      const quiz = await this.quizService.getQuizById(quizId, req.user.sub);
       return quiz ? quiz : { message: 'Quiz not found or you are not authorized to access it' };
     }
 
     if (title) {
-      const quizzes = this.quizService.getQuizzesByTitle(title, req.user.sub); // Fetch quizzes by title
+      const quizzes = await this.quizService.getQuizzesByTitle(title, req.user.sub);
       return quizzes.length > 0 ? quizzes : { message: 'No quizzes found with the given title' };
     }
 
-    return this.quizService.getQuizzesByTeacher(req.user.sub); // Return all quizzes created by the teacher
+    return await this.quizService.getQuizzesByTeacher(req.user.sub);
   }
 
-  // API to take a quiz (check if it's before the deadline)
   @Get('take/:id')
   @UseGuards(AuthGuard)
-  takeQuiz(@Param('id') quizId: string, @Request() req) {
-    // Restrict teachers from taking the quiz
-    if (req.user.role !== UserRole.Teacher) {
+  async takeQuiz(@Param('id') quizId: string, @Request() req) {
+    if (req.user.role === UserRole.Teacher) {
       throw new ForbiddenException('Only students can take quizzes');
     }
 
-    const canTakeQuiz = this.quizService.canTakeQuiz(quizId);
+    const canTakeQuiz = await this.quizService.canTakeQuiz(quizId);
     if (!canTakeQuiz) {
       return { message: 'The quiz deadline has passed. You cannot take this quiz.' };
     }

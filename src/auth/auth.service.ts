@@ -1,14 +1,20 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { User } from '../entities/user.entity';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { User } from './user.schema'; // Mongoose User schema
 import { UserRole } from './user-role.enum';
+
 @Injectable()
 export class AuthService {
-  private users: User[] = [];
+  // Remove the in-memory users array
+  constructor(
+    private readonly jwtService: JwtService,
+    @InjectModel(User.name) private userModel: Model<User>, // Inject User model
+  ) {}
 
-  constructor(private readonly jwtService: JwtService) {}
- 
+  // Sign up logic
   async signup(user: User) {
     const cnicRegex = /^\d{5}-\d{7}-\d{1}$/;
 
@@ -24,9 +30,9 @@ export class AuthService {
     if (!validRoles.includes(user.role as UserRole)) {
       throw new BadRequestException('Invalid role. Role must be either "teacher" or "student".');
     }
-    
 
-    const userExists = this.users.find(u => u.cnic === user.cnic);
+    // Check if user already exists in MongoDB
+    const userExists = await this.userModel.findOne({ cnic: user.cnic }).exec();
     if (userExists) {
       throw new BadRequestException('User with this CNIC already exists.');
     }
@@ -35,24 +41,28 @@ export class AuthService {
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(user.password, salt);
 
-    user.id = Math.random().toString(36).substr(2, 9);
-    this.users.push(user);
+    // Save the new user in MongoDB
+    const newUser = new this.userModel(user);
+    await newUser.save();
 
     return { message: 'User registered successfully' };
   }
 
+  // Login logic
   async login(user: User) {
-    const foundUser = this.users.find(u => u.cnic === user.cnic);
+    // Find the user by CNIC in MongoDB
+    const foundUser = await this.userModel.findOne({ cnic: user.cnic }).exec();
     if (!foundUser) {
       throw new BadRequestException('Invalid credentials');
     }
 
-    // Compare the provided password with the hashed password
+    // Compare the provided password with the hashed password in MongoDB
     const isPasswordValid = await bcrypt.compare(user.password, foundUser.password);
     if (!isPasswordValid) {
       throw new BadRequestException('Invalid credentials');
     }
 
+    // Create JWT payload
     const payload = { username: foundUser.username, sub: foundUser.id, role: foundUser.role };
     const token = this.jwtService.sign(payload, { expiresIn: '1h' });
 
